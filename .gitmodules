@@ -1,3 +1,7 @@
 [submodule "NeRF/TensoRF"]
 	path = NeRF/TensoRF
 	url = git@github.com:NeRF-or-Nothing/TensoRF.git
+[submodule "TensoRF"]
+	path = TensoRF
+	url = https://github.com/NeRF-or-Nothing/TensoRF.git
+	branch = webserver-connection
