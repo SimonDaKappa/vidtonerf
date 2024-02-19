@@ -85,6 +85,43 @@ class RabbitMQService:
     #   channel.basic.consume(on_message_callback = callback_sfm_job, queue = sfm_out)
 
 
+def publish_nerf_job2(id: str, vid: Video, sfm: Sfm, rabbitip):
+    print("DEBUG: publish_nerf_job2() called", flush=True)
+  
+    def to_url(file_path):
+        return f"http://localhost:5000/worker-data/{file_path}"
+        # for docker
+        # return os.join("http://host.docker.internal:5000", file_path)
+  
+    # Messy try to implement nerf-in
+    rabbitmq_domain = rabbitip
+    credentials = pika.PlainCredentials('admin', 'password123')
+    parameters = pika.ConnectionParameters(rabbitmq_domain, 5672, '/', credentials, heartbeat=300)
+    connection = pika.BlockingConnection(parameters)
+    channel = connection.channel()
+    channel.queue_declare(queue='nerf-in')
+    print("DEBUG: publish_nerf_job2() queue connection made", flush=True)
+    
+    job = {
+            "id": id,
+            "vid_width": vid.width,
+            "vid_height": vid.height
+    }
+
+    # replace relative filepaths with URLS
+    sfm_data = sfm.to_dict()
+    for i,frame in enumerate(sfm_data["frames"]):
+        file_path = frame["file_path"]
+        file_url = to_url(file_path)
+        sfm_data["frames"][i]["file_path"] = file_url
+    
+    combined_job = {**job, **sfm_data}
+    print(f"DEBUG: combined_job: {combined_job}", flush=True)
+    json_job = json.dumps(combined_job)
+    channel.basic_publish(exchange='', routing_key='nerf-in', body=json_job)
+    
+    
+
 
 def digest_finished_sfms(rabbitip, scene_manager: SceneManager):
 
@@ -95,6 +132,7 @@ def digest_finished_sfms(rabbitip, scene_manager: SceneManager):
 
         #convert each url to filepath
         #store png 
+        print("DEBUG: sfm-out proccessed!\n", flush=True)
         for i,fr_ in enumerate(sfm_data['frames']):
             # TODO: This code trusts the file extensions from the worker
             # TODO: handle files not found
@@ -117,8 +155,11 @@ def digest_finished_sfms(rabbitip, scene_manager: SceneManager):
         scene_manager.set_sfm(id,sfm)
         scene_manager.set_video(id,vid)
 
-        print("saved finished sfm job")
+        print("saved finished sfm job", flush=True)
         new_data = json.dumps(sfm_data)
+        
+        # Publish to nerf-in
+        publish_nerf_job2(id, vid, sfm, rabbitip)
         ch.basic_ack(delivery_tag=method.delivery_tag)
 
     # create unique connection to rabbitmq since pika is NOT thread safe

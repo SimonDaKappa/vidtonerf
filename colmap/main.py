@@ -113,17 +113,26 @@ def colmap_worker():
             id, video_file_path, input_data_dir, output_data_dir
         )
 
+        
+        print("DEBUG: sfm_pipeline_fin", flush=True)
+      
         # create links to local data to serve
+        print(str.format("DEBUG: total frames = {}",
+              len(motion_data["frames"])), flush=True)
         for i, frame in enumerate(motion_data["frames"]):
+            print(f"DEBUG: i={i}", flush=True)
             file_name = frame["file_path"]
             file_path = os.path.join(imgs_folder, file_name)
             file_url = to_url(file_path)
             motion_data["frames"][i]["file_path"] = file_url
 
         json_motion_data = json.dumps(motion_data)
+        print(f"DEBUG: MOTION DATA: \n{json_motion_data}", flush=True)
         channel.basic_publish(
             exchange="", routing_key="sfm-out", body=json_motion_data
         )
+        
+        print("DEBUG: published to sfm-out", flush=True)
 
         # confirm to rabbitmq job is done
         ch.basic_ack(delivery_tag=method.delivery_tag)
